@@ -1,33 +1,40 @@
 #!/bin/sh
 # Infrlo run command:  sh start.sh
-# Starts the Hermes Agent dashboard with a prebuilt web UI
+# Installs hermes-agent (editable, from the vendored tarball) if needed,
+# then starts the Hermes Agent dashboard with a prebuilt web UI
 # (no Node/npm needed at runtime).
+#
+# NOTE: everything happens here at *runtime*, not in the Build command:
+# the Infrlo build step runs in a different working directory than the
+# repo root (and its build env has no git), so pip cannot install there.
 set -eu
 
 cd "$(dirname "$0")"
 APP_DIR="$PWD"
 
-# Hermes source tree (vendored as a tarball: Infrlo's build env has no git,
-# so pip cannot clone it — extract here, installed editable at build time).
+# --- vendored hermes-agent source (tarball ships inside this repo) ---
 if [ ! -f "$APP_DIR/hermes-src/hermes_cli/__init__.py" ]; then
   echo "Extracting hermes-src.tar.gz ..."
   mkdir -p "$APP_DIR/hermes-src"
   tar -xzf "$APP_DIR/hermes-src.tar.gz" -C "$APP_DIR/hermes-src"
 fi
 
-# Find the python that has hermes_cli installed (the build env's python).
+# --- python ---
 PYBIN=""
 for py in python3 python; do
-  if command -v "$py" >/dev/null 2>&1 && "$py" -c "import hermes_cli" 2>/dev/null; then
-    PYBIN="$(command -v "$py")"
-    break
-  fi
+  if command -v "$py" >/dev/null 2>&1; then PYBIN="$(command -v "$py")"; break; fi
 done
-if [ -z "$PYBIN" ]; then
-  echo "ERROR: no python interpreter with hermes_cli installed was found" >&2
-  exit 1
+if [ -z "$PYBIN" ]; then echo "ERROR: no python interpreter found" >&2; exit 1; fi
+
+# --- install hermes-agent (editable) if not already importable ---
+if ! "$PYBIN" -c "import hermes_cli" 2>/dev/null; then
+  echo "Installing hermes-agent (editable, this takes a minute) ..."
+  "$PYBIN" -m pip install -e "$APP_DIR/hermes-src[web]"
 fi
-export PATH="$("$PYBIN" -c 'import sysconfig; print(sysconfig.get_path("scripts"))'):$PATH"
+
+# --- make the installed `hermes` entry-point script reachable ---
+USER_BIN="$("$PYBIN" -c 'import site, os; print(os.path.join(site.getuserbase(), "bin"))')"
+export PATH="$USER_BIN:$PATH"
 
 # Writable, repo-local home for hermes state/config.
 export HERMES_HOME="${HERMES_HOME:-$APP_DIR/.hermes-home}"
@@ -48,5 +55,11 @@ if [ -z "${HERMES_DASHBOARD_BASIC_AUTH_SECRET:-}" ]; then
 fi
 
 PORT="${PORT:-8080}"
+export PORT
 echo "Starting hermes dashboard on 0.0.0.0:$PORT ..."
-exec hermes dashboard --no-open --skip-build --host 0.0.0.0 --port "$PORT"
+if command -v hermes >/dev/null 2>&1; then
+  exec hermes dashboard --no-open --skip-build --host 0.0.0.0 --port "$PORT"
+else
+  echo "WARNING: 'hermes' script not on PATH, invoking entry point directly"
+  exec "$PYBIN" -c 'import sys, os; sys.argv=["hermes","dashboard","--no-open","--skip-build","--host","0.0.0.0","--port",os.environ["PORT"]]; from hermes_cli.main import main; sys.exit(main())'
+fi

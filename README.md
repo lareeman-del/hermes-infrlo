@@ -18,8 +18,10 @@ wheel-билд hermes блокирует setup.py) + запуск `hermes dashbo
    (start.sh, web_dist/).
 2. В дашборде Infrlo: Deploy → **From Public URL** → вставь URL репозитория, ветка `main`.
 3. Build Config:
-   - Build command:
-     `mkdir -p hermes-src && tar -xzf hermes-src.tar.gz -C hermes-src && pip install -e "./hermes-src[web]"`
+   - Build command: `python3 --version && python3 -m pip --version`
+     (toolchain check only — the real install happens at *runtime* in
+     start.sh, because the Infrlo build step runs outside the repo root
+     and its build env has no git)
    - Run command: `sh start.sh`
 
    Notes:
