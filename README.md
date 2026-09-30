@@ -19,8 +19,16 @@ wheel-билд hermes блокирует setup.py) + запуск `hermes dashbo
 2. В дашборде Infrlo: Deploy → **From Public URL** → вставь URL репозитория, ветка `main`.
 3. Build Config:
    - Build command:
-     `pip install -e "git+https://github.com/NousResearch/hermes-agent.git@v2026.9.24#egg=hermes-agent[web]"`
+     `mkdir -p hermes-src && tar -xzf hermes-src.tar.gz -C hermes-src && pip install -e "./hermes-src[web]"`
    - Run command: `sh start.sh`
+
+   Notes:
+   - The hermes-agent source is vendored as `hermes-src.tar.gz` (slimmed tree:
+     python packages + root modules + locales/skills data) because the Infrlo
+     build environment has no `git`, so pip cannot clone a `git+https://` URL.
+   - `requirements.txt` is only a language-detection marker for the buildpack;
+     the real install is the editable one in the Build command (hermes-agent's
+     setup.py refuses regular wheel builds outside Nix).
 4. Нажми Deploy.
 
 ## После деплоя

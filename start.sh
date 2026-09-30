@@ -7,6 +7,14 @@ set -eu
 cd "$(dirname "$0")"
 APP_DIR="$PWD"
 
+# Hermes source tree (vendored as a tarball: Infrlo's build env has no git,
+# so pip cannot clone it — extract here, installed editable at build time).
+if [ ! -f "$APP_DIR/hermes-src/hermes_cli/__init__.py" ]; then
+  echo "Extracting hermes-src.tar.gz ..."
+  mkdir -p "$APP_DIR/hermes-src"
+  tar -xzf "$APP_DIR/hermes-src.tar.gz" -C "$APP_DIR/hermes-src"
+fi
+
 # Find the python that has hermes_cli installed (the build env's python).
 PYBIN=""
 for py in python3 python; do
