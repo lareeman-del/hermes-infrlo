@@ -1,0 +1,3 @@
+# Editable install: hermes-agent's setup.py refuses regular wheel builds,
+# so this must stay an -e (editable) requirement.
+-e hermes-agent[web] @ git+https://github.com/NousResearch/hermes-agent.git@v2026.9.24
