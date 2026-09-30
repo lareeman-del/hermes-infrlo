@@ -19,7 +19,7 @@ wheel-билд hermes блокирует setup.py) + запуск `hermes dashbo
 2. В дашборде Infrlo: Deploy → **From Public URL** → вставь URL репозитория, ветка `main`.
 3. Build Config:
    - Build command:
-     `pip install -e "hermes-agent[web] @ git+https://github.com/NousResearch/hermes-agent.git@v2026.9.24"`
+     `pip install -e "git+https://github.com/NousResearch/hermes-agent.git@v2026.9.24#egg=hermes-agent[web]"`
    - Run command: `sh start.sh`
 4. Нажми Deploy.
 
