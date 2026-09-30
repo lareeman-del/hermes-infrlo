@@ -56,6 +56,12 @@ fi
 
 PORT="${PORT:-8080}"
 export PORT
+if [ -z "${PORT+x}" ]; then
+  echo "DIAG: PORT was NOT set by platform env; using default 8080"
+else
+  echo "DIAG: PORT from platform env: $PORT"
+fi
+echo "DIAG: port-ish env vars:"; printenv | grep -i -E 'port|host' | sed 's/=.*/=<set>/' || true
 echo "Starting hermes dashboard on 0.0.0.0:$PORT ..."
 if command -v hermes >/dev/null 2>&1; then
   exec hermes dashboard --no-open --skip-build --host 0.0.0.0 --port "$PORT"
