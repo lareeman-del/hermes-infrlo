@@ -60,6 +60,16 @@ export PATH="$NODE_DIR/bin:$PATH"
 export HERMES_NODE="$NODE_DIR/bin/node"
 echo "DIAG: node $(node --version 2>/dev/null || echo MISSING)"
 
+# --- memory trims for Render's 512MB free tier ---
+# Each dashboard chat session spawns a Node TUI process; V8's default heap
+# (~2GB on 64-bit) lets a single session push the whole box over Render's
+# 512MB kill limit. Cap it — the TUI is a thin terminal client, it doesn't
+# need more. Inherited by every child process (incl. the chat spawner).
+export NODE_OPTIONS="--max-old-space-size=160"
+# No .pyc writes on the ephemeral filesystem (minor disk/memory churn saver).
+export PYTHONDONTWRITEBYTECODE=1
+echo "DIAG: NODE_OPTIONS=$NODE_OPTIONS"
+
 # Writable, repo-local home for hermes state/config.
 export HERMES_HOME="${HERMES_HOME:-$APP_DIR/.hermes-home}"
 mkdir -p "$HERMES_HOME"
