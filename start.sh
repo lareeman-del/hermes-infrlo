@@ -1,12 +1,12 @@
 #!/bin/sh
-# Infrlo run command:  sh start.sh
-# Installs hermes-agent (editable, from the vendored tarball) if needed,
-# then starts the Hermes Agent dashboard with a prebuilt web UI
-# (no Node/npm needed at runtime).
+# Render run command:  sh start.sh
+# Installs hermes-agent (editable, from the vendored tarball) and Node.js
+# (needed by the dashboard's terminal chat) if needed, then starts the
+# Hermes Agent dashboard with a prebuilt web UI.
 #
 # NOTE: everything happens here at *runtime*, not in the Build command:
-# the Infrlo build step runs in a different working directory than the
-# repo root (and its build env has no git), so pip cannot install there.
+# the build step may run in a different working directory than the
+# repo root, so pip cannot install there reliably.
 set -eu
 
 cd "$(dirname "$0")"
@@ -36,12 +36,63 @@ fi
 USER_BIN="$("$PYBIN" -c 'import site, os; print(os.path.join(site.getuserbase(), "bin"))')"
 export PATH="$USER_BIN:$PATH"
 
+# --- node.js (the dashboard's terminal chat needs Node 18+) ---
+# Official prebuilt binary, repo-local, no root needed.
+NODE_VER="v24.21.0"
+NODE_DIR="$APP_DIR/.node"
+if [ ! -x "$NODE_DIR/bin/node" ]; then
+  echo "Installing Node.js $NODE_VER (for dashboard terminal chat) ..."
+  mkdir -p "$NODE_DIR" /tmp
+  curl -fsSL "https://nodejs.org/dist/${NODE_VER}/node-${NODE_VER}-linux-x64.tar.xz" \
+    -o /tmp/node-dist.tar.xz
+  tar -xJf /tmp/node-dist.tar.xz -C "$NODE_DIR" --strip-components=1
+  rm -f /tmp/node-dist.tar.xz
+fi
+export PATH="$NODE_DIR/bin:$PATH"
+echo "DIAG: node $(node --version 2>/dev/null || echo MISSING)"
+
 # Writable, repo-local home for hermes state/config.
 export HERMES_HOME="${HERMES_HOME:-$APP_DIR/.hermes-home}"
 mkdir -p "$HERMES_HOME"
 
 # Prebuilt dashboard frontend (built locally with `npm run build` in web/).
 export HERMES_WEB_DIST="$APP_DIR/web_dist"
+
+# --- model provider: reformboss gateway (custom OpenAI-compatible endpoint) ---
+# Needs REFORMBOSS_API_KEY in the platform's env vars. Merged into
+# $HERMES_HOME/config.yaml on every boot so the wiring survives the free
+# tier's ephemeral filesystem. The default model is only set when the user
+# hasn't picked one — a switch in the dashboard UI lasts until the next
+# restart/redeploy.
+if [ -n "${REFORMBOSS_API_KEY:-}" ]; then
+  RB_BASE_URL="${REFORMBOSS_BASE_URL:-https://api.reformboss.com/v1}"
+  RB_MODEL="${REFORMBOSS_MODEL:-deepseek-v4-pro}"
+  "$PYBIN" - "$HERMES_HOME" "$RB_BASE_URL" "$RB_MODEL" <<'PYEOF' || \
+    echo "WARNING: reformboss provider wiring failed, continuing without it"
+import os, sys
+home, base_url, default_model = sys.argv[1], sys.argv[2], sys.argv[3]
+import yaml
+cfg_path = os.path.join(home, "config.yaml")
+cfg = {}
+if os.path.exists(cfg_path):
+    with open(cfg_path) as f:
+        loaded = yaml.safe_load(f)
+        cfg = loaded if isinstance(loaded, dict) else {}
+providers = cfg.get("providers")
+if not isinstance(providers, dict):
+    providers = cfg["providers"] = {}
+providers["reformboss"] = {"base_url": base_url, "key_env": "REFORMBOSS_API_KEY"}
+model = cfg.get("model")
+if not isinstance(model, dict):
+    model = cfg["model"] = {}
+if not model.get("default"):
+    model.update({"provider": "custom", "default": default_model,
+                  "base_url": base_url, "key_env": "REFORMBOSS_API_KEY"})
+with open(cfg_path, "w") as f:
+    yaml.safe_dump(cfg, f, allow_unicode=True)
+print("provider wiring OK: reformboss ->", cfg_path)
+PYEOF
+fi
 
 # Basic-auth gate — mandatory for non-loopback binds since mid-2026.
 export HERMES_DASHBOARD_BASIC_AUTH_USERNAME="${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-admin}"
