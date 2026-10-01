@@ -32,6 +32,12 @@ if ! "$PYBIN" -c "import hermes_cli" 2>/dev/null; then
   "$PYBIN" -m pip install -e "$APP_DIR/hermes-src[web]"
 fi
 
+# --- aiohttp (needed by the Hermes gateway's local API server; not in the [web] extra) ---
+if ! "$PYBIN" -c "import aiohttp" 2>/dev/null; then
+  echo "Installing aiohttp (for the Hermes gateway) ..."
+  "$PYBIN" -m pip install "aiohttp==3.14.3"
+fi
+
 # --- make the installed `hermes` entry-point script reachable ---
 USER_BIN="$("$PYBIN" -c 'import site, os; print(os.path.join(site.getuserbase(), "bin"))')"
 export PATH="$USER_BIN:$PATH"
@@ -49,6 +55,9 @@ if [ ! -x "$NODE_DIR/bin/node" ]; then
   rm -f /tmp/node-dist.tar.xz
 fi
 export PATH="$NODE_DIR/bin:$PATH"
+# The dashboard's terminal chat resolves node via $HERMES_NODE first, then
+# $HERMES_HOME/node — a bare PATH export is not enough for its spawner.
+export HERMES_NODE="$NODE_DIR/bin/node"
 echo "DIAG: node $(node --version 2>/dev/null || echo MISSING)"
 
 # Writable, repo-local home for hermes state/config.
@@ -86,7 +95,9 @@ model = cfg.get("model")
 if not isinstance(model, dict):
     model = cfg["model"] = {}
 if not model.get("default"):
-    model.update({"provider": "custom", "default": default_model,
+    # provider = the named `providers:` entry (resolves with its base_url/key_env);
+    # bare "custom" would show as unauthenticated in the model picker.
+    model.update({"provider": "reformboss", "default": default_model,
                   "base_url": base_url, "key_env": "REFORMBOSS_API_KEY"})
 with open(cfg_path, "w") as f:
     yaml.safe_dump(cfg, f, allow_unicode=True)
