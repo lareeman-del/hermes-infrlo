@@ -67,6 +67,13 @@ mkdir -p "$HERMES_HOME"
 # Prebuilt dashboard frontend (built locally with `npm run build` in web/).
 export HERMES_WEB_DIST="$APP_DIR/web_dist"
 
+# Prebuilt terminal-chat TUI bundle (built from ui-tui/ at tag v2026.9.24,
+# vendored as tui-dist/dist/entry.js). The dashboard's chat spawns
+# `node $HERMES_TUI_DIR/dist/entry.js`; without it the trimmed source has
+# neither tui_dist/ nor ui-tui/ and the chat dies with a misleading
+# "needs Node.js" message (any SystemExit maps to it).
+export HERMES_TUI_DIR="$APP_DIR/tui-dist"
+
 # --- model provider: reformboss gateway (custom OpenAI-compatible endpoint) ---
 # Needs REFORMBOSS_API_KEY in the platform's env vars. Merged into
 # $HERMES_HOME/config.yaml on every boot so the wiring survives the free
